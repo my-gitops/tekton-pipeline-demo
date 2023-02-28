@@ -4,9 +4,7 @@
 3. apply pipelines folder yaml files
 4. create pipelineruns folder yaml files, you should update some params.
 
-#################################################################################################
+<br></br>
 pullcode ------> go test -------------> go build ------------> kaniko package image and push registry
-
-
-###################################################################################
+<br></br>
 test go code repo:  
