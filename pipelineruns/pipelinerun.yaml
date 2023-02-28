@@ -1,0 +1,31 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: test-pipelinerun-
+spec:
+  serviceAccountName: auth-credentials
+  params:
+    - name: image
+      value: registry.cn-hangzhou.aliyuncs.com/assbcvds/devops-gin-test:v0.1
+    - name: SONAR_PROJECT_KEY
+      value: devops-gin-test
+    - name: PROJECT_VERSION
+      value: "1.0"
+    - name: SOURCE_TO_SCAN
+      value: "./"
+    - name: SONAR_PASSWORD_KEY
+      value: password
+    - name: SONAR_LOGIN_KEY
+      value: username
+  pipelineRef:
+    name: go-test-pipeline
+  workspaces:
+    - name: shared-workspace
+      persistentvolumeclaim:
+        claimName: shared-task-storage
+    - name: docker-credentials
+      secret:
+        secretName: docker-credentials
+    - name: sonar-credentials
+      secret:
+        secretName: sonarqube-credentials

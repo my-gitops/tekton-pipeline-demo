@@ -1,0 +1,23 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: test-go-task
+spec:
+  workspaces:
+    - name: source-dir
+  steps:
+    - name: run-test-go
+      image: golang:1.19-alpine
+      env:
+        - name: GOPROXY
+          value: "https://goproxy.cn,direct"
+        - name: GOOS
+          value: "linux"
+        - name: CGO_ENABLED
+          value: "0"
+            #workingDir: $(workspaces.source-dir.path)/test
+            #command: ['go']
+            #args: ['test']
+      script: |
+        cd $(workspaces.source-dir.path)/test
+        go test

@@ -1,0 +1,124 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: go-test-pipeline
+spec:
+  workspaces:
+    - name: shared-workspace
+    - name: docker-credentials
+    - name: sonar-credentials
+  params:
+    - name: GIT_URL
+      description: your project git repo url
+      default: "https://192.168.0.110/devops/devops-gin-test.git"
+    - name: GIT_BRANCH
+      description: git repo branch name
+      default: master
+    - name: image
+      description: reference fo the image to build
+    - name: SONARQUBE_SERVER_URL
+      description: sonarqube server instance url
+      default: "http://192.168.0.110:9000"
+    - name: SOURCE_TO_SCAN
+      description: sonar scan source code path
+      default: "./"
+    - name: SONAR_PROJECT_KEY
+      description: sonar project name
+    - name: PROJECT_VERSION
+      description: Version of the project
+    - name: SONAR_LOGIN_KEY
+      description: Name of the file of the login within the sonarqube credentials workspace
+      default: username
+    - name: SONAR_PASSWORD_KEY
+      description: Name of the file of the password within the sonarqube credentials workspace
+      default: password
+  tasks:
+    - name: fetch-repository
+      taskRef:
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+      params:
+        - name: url
+          value: $(params.GIT_URL)
+        - name: revision
+          value: $(params.GIT_BRANCH)
+        - name: sslVerify
+          value: "false"
+        - name: deleteExisting
+          value: "true"
+    - name: test-go
+      taskRef:
+        name: test-go-task
+      workspaces:
+        - name: source-dir
+          workspace: shared-workspace
+      runAfter:
+        - fetch-repository
+    - name: build-go
+      taskRef:
+        name: go-build
+      workspaces:
+        - name: source-dir
+          workspace: shared-workspace
+      runAfter:
+        - fetch-repository
+    - name: sonarqube-scan
+      runAfter:
+        - fetch-repository
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+        - name: sonar-credentials
+          workspace: sonar-credentials
+      taskRef:
+        name: sonarqube-scanner
+      params:
+        - name: SONAR_HOST_URL
+          value: $(params.SONARQUBE_SERVER_URL)
+        - name: SONAR_ORGANIZATION
+          value: "default"
+        - name: SONAR_PROJECT_KEY
+          value: $(params.SONAR_PROJECT_KEY)
+        - name: PROJECT_VERSION
+          value: $(params.PROJECT_VERSION)
+        - name: SOURCE_TO_SCAN
+          value: $(params.SOURCE_TO_SCAN)
+        - name: SONAR_LOGIN_KEY
+          value: $(params.SONAR_LOGIN_KEY)
+        - name: SONAR_PASSWORD_KEY
+          value: $(params.SONAR_PASSWORD_KEY)
+    - name: kaniko-docker
+      taskRef:
+        name: kaniko
+      workspaces:
+        - name: source-dir
+          workspace: shared-workspace
+        - name: docker-config
+          workspace: docker-credentials
+      params:
+        - name: IMAGE
+          value: $(params.image)
+        - name: EXTRA_ARGS
+          value: "--skip-tls-verify"
+      runAfter:
+        - fetch-repository
+    - name: verify-digest
+      runAfter:
+        - kaniko-docker
+      params:
+        - name: digest
+          value: $(tasks.kaniko-docker.results.IMAGE-DIGEST)
+      taskSpec:
+        params:
+          - name: digest
+        steps:
+          - name: bash
+            image: ubuntu
+            script: |
+              echo $(params.digest)
+              case .$(params.digest) in
+                ".sha"*) exit 0 ;;
+                *)       echo "Digest value is not correct" && exit 1 ;;
+              esac
